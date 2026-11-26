@@ -16,9 +16,9 @@ A card swipe hits a reactive REST API. The transaction is stored in DynamoDB, to
 
 ## Architecture
 
-![System design: client, ALB, Spring WebFlux API on ECS Fargate in private subnets, Redis, DynamoDB, SNS fan-out to SQS, fraud Lambda and alert path](docs/system-design.svg)
+![System design with AWS icons: client, ALB, Spring WebFlux API on ECS Fargate in private subnets, Redis, DynamoDB, SNS fan-out to SQS, fraud Lambda and alert path](docs/architecture.png)
 
-Blue numbered arrows are the synchronous request path (the client waits for these); orange lettered arrows are the asynchronous event path.
+Blue numbered arrows are the synchronous request path (the client waits for these); orange lettered arrows are the asynchronous event path. The diagram is code: `docs/architecture.py` (Python `diagrams` + Graphviz, official AWS icons).
 
 ## The workflow, step by step
 
@@ -168,7 +168,7 @@ card-txn-platform/
 ├── fraud-lambda/   Java Lambda handler + fraud rules (+ LocalSqsPoller for local runs)
 ├── infra/          AWS CDK app in Java
 ├── scripts/        run-local.sh, demo.sh, aws-up.sh, aws-demo.sh, aws-kill-switch.sh
-├── docs/           system-design.svg
+├── docs/           architecture.py (diagram as code) + architecture.png
 └── docker-compose.yml   Moto + Redis
 ```
 
