@@ -16,22 +16,9 @@ A card swipe hits a reactive REST API. The transaction is stored in DynamoDB, to
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    C[Client] -->|POST /transactions| API[Spring WebFlux API]
-    API -->|1. conditional put| DDB[(DynamoDB<br/>transactions)]
-    API -->|2. INCRBY pence| R[(Redis<br/>spend per card/day)]
-    API -->|3. publish| T1{{SNS<br/>transaction-created}}
-    T1 --> Q1[SQS fraud-check]
-    T1 --> Q2[SQS notifications]
-    Q1 --> L[Lambda: fraud rules]
-    L -->|query GSI, update status| DDB
-    L -->|if FLAGGED| T2{{SNS<br/>fraud-alerts}}
-    T2 --> Q2
-    Q2 --> N[Notification consumer<br/>in the API]
-    Q1 -.3 failures.-> D1[DLQ]
-    Q2 -.3 failures.-> D2[DLQ]
-```
+![System design: client, ALB, Spring WebFlux API on ECS Fargate in private subnets, Redis, DynamoDB, SNS fan-out to SQS, fraud Lambda and alert path](docs/system-design.svg)
+
+Blue numbered arrows are the synchronous request path (the client waits for these); orange lettered arrows are the asynchronous event path.
 
 ## The workflow, step by step
 
@@ -123,17 +110,36 @@ mvn verify
 
 ## Deploy to AWS (optional)
 
-The CDK app in `infra/` (Java) creates the whole stack: DynamoDB with a GSI and point-in-time recovery, two SNS topics, four SQS queues (two DLQs), the Java 21 Lambda with its SQS trigger, a VPC with public and private subnets and **one NAT gateway**, **ElastiCache Redis** reachable only from the API's security group, and the API on **ECS Fargate behind an ALB**, with least-privilege IAM grants.
+Sign in first (short-lived credentials, no stored keys): `aws login --region eu-north-1`.
+
+### Lite (recommended for demos)
+
+DynamoDB, SNS, SQS with DLQs and the fraud Lambda. Nothing in it is billed by the hour; demo traffic costs pennies.
 
 ```bash
-mvn -B package -DskipTests       # builds the API jar and the Lambda fat jar
-cd infra
-cdk bootstrap                    # once per account/region
-cdk deploy
-cdk destroy                      # when you're done
+scripts/aws-up.sh          # builds the Lambda jar, bootstraps CDK once, deploys with -c mode=lite
+scripts/aws-demo.sh        # writes PENDING transactions + publishes events; shows decisions, Lambda logs, alerts
 ```
 
-> ⚠️ **Cost:** the NAT gateway, ALB, Fargate task and ElastiCache node bill **by the hour** even when idle (roughly £2–3/day together). DynamoDB, SNS, SQS and Lambda cost pennies at demo volume. Run `cdk destroy` after trying it.
+### Kill switch
+
+```bash
+scripts/aws-kill-switch.sh status    # trigger on/off, reserved concurrency, messages waiting
+scripts/aws-kill-switch.sh pause     # instant stop: disables the SQS trigger, Lambda concurrency -> 0
+scripts/aws-kill-switch.sh resume    # back on; queued messages are processed (SQS keeps them 4 days)
+scripts/aws-kill-switch.sh destroy   # deletes the whole stack: zero ongoing cost
+```
+
+### Full
+
+The same CDK app without `-c mode=lite` also creates a VPC with public and private subnets and **one NAT gateway**, **ElastiCache Redis** reachable only from the API's security group, and the API on **ECS Fargate behind an ALB**, with least-privilege IAM grants.
+
+```bash
+mvn -B package -DskipTests
+cd infra && cdk deploy     # and `cdk destroy` when done
+```
+
+> ⚠️ **Cost:** in the full stack the NAT gateway, ALB, Fargate task and ElastiCache node bill **by the hour** even when idle (roughly £2–3/day together). Destroy it after trying it.
 
 ## Design decisions (and the trade-offs)
 
@@ -161,7 +167,8 @@ card-txn-platform/
 ├── api/            Spring Boot WebFlux service (controller, service, DynamoDB, Redis, SNS, SQS consumer)
 ├── fraud-lambda/   Java Lambda handler + fraud rules (+ LocalSqsPoller for local runs)
 ├── infra/          AWS CDK app in Java
-├── scripts/        run-local.sh, demo.sh
+├── scripts/        run-local.sh, demo.sh, aws-up.sh, aws-demo.sh, aws-kill-switch.sh
+├── docs/           system-design.svg
 └── docker-compose.yml   Moto + Redis
 ```
 

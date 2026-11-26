@@ -15,7 +15,9 @@ public final class InfraApp {
         if (account != null) {
             props.env(Environment.builder().account(account).region(System.getenv("CDK_DEFAULT_REGION")).build());
         }
-        new CardTxnStack(app, "CardTxnStack", props.build());
+        // cdk deploy -c mode=lite  -> data + messaging + Lambda only (no hourly-billed resources)
+        boolean lite = "lite".equals(app.getNode().tryGetContext("mode"));
+        new CardTxnStack(app, "CardTxnStack", props.build(), lite);
         app.synth();
     }
 }

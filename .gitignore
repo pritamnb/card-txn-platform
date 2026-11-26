@@ -5,3 +5,4 @@ cdk.out/
 .vscode/
 .DS_Store
 *.log
+cdk-outputs.json

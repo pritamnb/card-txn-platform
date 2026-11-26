@@ -29,6 +29,8 @@ import software.amazon.awscdk.services.lambda.Code;
 import software.amazon.awscdk.services.lambda.Function;
 import software.amazon.awscdk.services.lambda.Runtime;
 import software.amazon.awscdk.services.lambda.eventsources.SqsEventSource;
+import software.amazon.awscdk.services.logs.LogGroup;
+import software.amazon.awscdk.services.logs.RetentionDays;
 import software.amazon.awscdk.services.sns.Topic;
 import software.amazon.awscdk.services.sns.subscriptions.SqsSubscription;
 import software.amazon.awscdk.services.sqs.DeadLetterQueue;
@@ -51,7 +53,11 @@ import software.constructs.Construct;
  */
 public class CardTxnStack extends Stack {
 
-    public CardTxnStack(Construct scope, String id, StackProps props) {
+    /**
+     * @param lite true = data + messaging + Lambda only (no VPC/NAT, Redis, ECS, ALB): nothing billed
+     *             by the hour, pennies at demo volume. Deploy with: cdk deploy -c mode=lite
+     */
+    public CardTxnStack(Construct scope, String id, StackProps props, boolean lite) {
         super(scope, id, props);
 
         // ---------- Data ----------
@@ -87,6 +93,9 @@ public class CardTxnStack extends Stack {
                 .handler("io.github.pritamnb.cardtxn.fraud.FraudHandler::handleRequest")
                 .code(Code.fromAsset("../fraud-lambda/target/fraud-lambda-0.1.0.jar"))
                 .memorySize(1024)
+                .logGroup(LogGroup.Builder.create(this, "FraudCheckLogs")
+                        .retention(RetentionDays.ONE_WEEK)
+                        .removalPolicy(RemovalPolicy.DESTROY).build())
                 .timeout(Duration.seconds(30)) // must be < queue visibility timeout (60s)
                 .environment(Map.of(
                         "TABLE_NAME", table.getTableName(),
@@ -98,6 +107,16 @@ public class CardTxnStack extends Stack {
                 .build());
         table.grantReadWriteData(fraudFn);
         alertTopic.grantPublish(fraudFn);
+
+        CfnOutput.Builder.create(this, "FraudFunctionName").value(fraudFn.getFunctionName()).build();
+        CfnOutput.Builder.create(this, "TransactionTopicArn").value(txnTopic.getTopicArn()).build();
+        CfnOutput.Builder.create(this, "NotificationsQueueUrl").value(notifyQueue.getQueueUrl()).build();
+        CfnOutput.Builder.create(this, "FraudDlqUrl").value(fraudQueue.getDeadLetterQueue().getQueue().getQueueUrl()).build();
+        CfnOutput.Builder.create(this, "TableName").value(table.getTableName()).build();
+
+        if (lite) {
+            return; // lite mode stops here: no VPC, NAT gateway, Redis, ECS or ALB
+        }
 
         // ---------- Network ----------
         Vpc vpc = Vpc.Builder.create(this, "Vpc")
@@ -157,7 +176,6 @@ public class CardTxnStack extends Stack {
         notifyQueue.grantConsumeMessages(api.getTaskDefinition().getTaskRole());
 
         CfnOutput.Builder.create(this, "ApiUrl").value("http://" + api.getLoadBalancer().getLoadBalancerDnsName()).build();
-        CfnOutput.Builder.create(this, "FraudDlqUrl").value(fraudQueue.getDeadLetterQueue().getQueue().getQueueUrl()).build();
     }
 
     private Queue queueWithDlq(String id, String name, Duration visibilityTimeout) {
