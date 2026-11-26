@@ -18,7 +18,7 @@ A card swipe hits a reactive REST API. The transaction is stored in DynamoDB, to
 
 ![System design with AWS icons: client, ALB, Spring WebFlux API on ECS Fargate in private subnets, Redis, DynamoDB, SNS fan-out to SQS, fraud Lambda and alert path](docs/architecture.png)
 
-Blue numbered arrows are the synchronous request path (the client waits for these); orange lettered arrows are the asynchronous event path. The diagram is code: `docs/architecture.py` (Python `diagrams` + Graphviz, official AWS icons).
+Blue arrows are the request path (the terminal waits for these); orange dashed arrows are the fraud check, which runs after the response. Dead-letter queues, the VPC/NAT gateway and CloudWatch are left out of the picture for clarity; they are described below and defined in `infra/`. The diagram is code: `docs/architecture.py` (Python `diagrams` + Graphviz, official AWS icons).
 
 ## The workflow, step by step
 
