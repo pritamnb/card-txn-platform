@@ -1,0 +1,8 @@
+# Local profile: Moto emulator on :4566 (docker compose up). Moto's account id is 123456789012.
+app:
+  aws:
+    region: eu-west-2
+    endpoint: ${AWS_ENDPOINT_URL:http://localhost:4566}
+  transaction-topic-arn: arn:aws:sns:eu-west-2:123456789012:transaction-created
+  notifications:
+    queue-url: ${app.aws.endpoint}/123456789012/notifications-queue

@@ -1,0 +1,10 @@
+# Local AWS stand-ins. Moto emulates DynamoDB, SNS and SQS (incl. SNS -> SQS delivery) for free.
+services:
+  moto:
+    image: motoserver/moto:latest
+    ports:
+      - "4566:5000"   # host 4566: macOS AirPlay already uses 5000
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"

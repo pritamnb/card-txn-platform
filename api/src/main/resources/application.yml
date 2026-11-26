@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: card-txn-api
+  webflux:
+    problemdetails:
+      enabled: true          # RFC 9457 error bodies for 400/404/500
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Real AWS (deployed via CDK): values come from environment variables.
+app:
+  aws:
+    region: ${AWS_REGION:eu-west-2}
+    endpoint: ${AWS_ENDPOINT_URL:}
+  table-name: ${TABLE_NAME:transactions}
+  transaction-topic-arn: ${TRANSACTION_TOPIC_ARN:}
+  notifications:
+    enabled: ${NOTIFICATIONS_ENABLED:true}
+    queue-url: ${NOTIFICATIONS_QUEUE_URL:}
